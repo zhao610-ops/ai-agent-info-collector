@@ -35,19 +35,19 @@
 
 ```mermaid
 flowchart LR
-    UI[Next.js 管理前端] --> API[FastAPI API]
-    API --> O[OrchestratorAgent]
-    O --> N[NewsAgent]
-    N --> G[GitHubAgent]
-    G --> T[TrendAgent]
-    T --> V[VisualizationAgent]
-    V --> R[ReportAgent]
-    R --> P[ServerChanPushAgent]
-    N --> DB[(SQLite)]
+    UI["Next.js 管理前端"] --> API["FastAPI API"]
+    API --> O["OrchestratorAgent"]
+    O --> N["NewsAgent"]
+    N --> G["GitHubAgent"]
+    G --> T["TrendAgent"]
+    T --> V["VisualizationAgent"]
+    V --> R["ReportAgent"]
+    R --> P["ServerChanPushAgent"]
+    N --> DB[("SQLite")]
     G --> DB
     T --> DB
     O --> DB
-    V --> FS[reports/{week}/]
+    V --> FS["reports/{week}/"]
     R --> FS
     API --> DB
     API --> FS
