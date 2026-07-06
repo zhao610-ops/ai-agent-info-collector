@@ -18,7 +18,8 @@ def report_dict(row: WeeklyReport, detail: bool = False) -> dict:
             "wordcloud_image": row.wordcloud_image, "github_chart_image": row.github_chart_image,
             "keyword_trend_image": row.keyword_trend_image, "generation_mode": row.generation_mode,
             "llm_provider": row.llm_provider, "llm_model": row.llm_model,
-            "created_at": row.created_at, "pushed_at": row.pushed_at}
+            "created_at": row.created_at, "pushed_at": row.pushed_at,
+            "push_status": row.push_status}
     if detail:
         data.update({"content_md": row.content_md, "content_html": row.content_html})
     return data
@@ -48,6 +49,7 @@ def push_report(week: str, session: Session = Depends(get_db)):
     trends = session.query(KeywordStat).filter(KeywordStat.week == week).order_by(KeywordStat.trend_score.desc()).all()
     repos = session.query(GithubRepo).filter(GithubRepo.week == week).order_by(GithubRepo.stars_growth_7d.desc()).limit(10).all()
     context = {
+        "allow_push": True,
         "report": {"summary": report.summary},
         "trends": [{"keyword": row.keyword} for row in trends],
         "repos": [{"full_name": row.full_name, "stars_growth_7d": row.stars_growth_7d} for row in repos],
@@ -58,6 +60,7 @@ def push_report(week: str, session: Session = Depends(get_db)):
     if result["status"] != "success":
         raise HTTPException(502, result["error"] or "微信推送失败")
     report.pushed_at = datetime.now()
+    report.push_status = "success"
     session.commit()
     return {"message": "周报已成功推送到微信", "week": week, "pushed_at": report.pushed_at}
 

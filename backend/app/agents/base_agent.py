@@ -11,13 +11,24 @@ class BaseAgent:
     name = "BaseAgent"
 
     def execute(self, session: Session, run_id: str, week: str, context: dict) -> Any:
-        log = AgentRun(run_id=run_id, week=week, agent_name=self.name, status="running",
-                       input=json.dumps(self.summarize_input(context), ensure_ascii=False, default=str))
-        session.add(log); session.commit()
+        # 优先接管 Orchestrator 预创建的 pending 记录，保证前端可观察完整状态变化。
+        log = session.query(AgentRun).filter(
+            AgentRun.run_id == run_id,
+            AgentRun.agent_name == self.name,
+            AgentRun.status == "pending",
+        ).first()
+        if not log:
+            log = AgentRun(run_id=run_id, week=week, agent_name=self.name, status="pending")
+            session.add(log)
+        log.status = "running"
+        log.input = json.dumps(self.summarize_input(context), ensure_ascii=False, default=str)
+        log.started_at = datetime.now()
+        session.commit()
         try:
             result = self.run(session, week, context)
             log.status = "success"
             log.output = json.dumps(self.summarize_output(result), ensure_ascii=False, default=str)
+            log.output_count = self.count_output(result)
             return result
         except Exception as exc:
             log.status = "failed"
@@ -25,6 +36,7 @@ class BaseAgent:
             raise
         finally:
             log.finished_at = datetime.now()
+            log.duration_ms = max(int((log.finished_at - log.started_at).total_seconds() * 1000), 0)
             session.commit()
 
     def run(self, session: Session, week: str, context: dict) -> Any:
@@ -38,3 +50,13 @@ class BaseAgent:
     def summarize_output(result: Any) -> Any:
         return {"count": len(result)} if isinstance(result, list) else result
 
+    @staticmethod
+    def count_output(result: Any) -> int:
+        """将不同 Agent 的返回值归一为前端可展示的输出数量。"""
+        if result is None:
+            return 0
+        if isinstance(result, (list, tuple, set)):
+            return len(result)
+        if isinstance(result, dict) and isinstance(result.get("count"), int):
+            return result["count"]
+        return 1

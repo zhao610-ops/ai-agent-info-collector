@@ -78,6 +78,7 @@ class WeeklyReport(Base):
     generation_mode: Mapped[str] = mapped_column(String(20), default="template")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
     pushed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    push_status: Mapped[str] = mapped_column(String(30), default="not_pushed")
 
 
 class AgentRun(Base):
@@ -90,6 +91,8 @@ class AgentRun(Base):
     input: Mapped[str] = mapped_column(Text, default="")
     output: Mapped[str] = mapped_column(Text, default="")
     error: Mapped[str] = mapped_column(Text, default="")
+    output_count: Mapped[int] = mapped_column(Integer, default=0)
+    duration_ms: Mapped[int] = mapped_column(Integer, default=0)
     started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
@@ -127,7 +130,10 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False
 
 
 def init_db() -> None:
+    # create_all 不会更新已有表，因此建表后执行轻量兼容迁移。
     Base.metadata.create_all(engine)
+    from app.services.migration_service import migrate_schema
+    migrate_schema(engine)
 
 
 @contextmanager
@@ -149,4 +155,3 @@ def get_db():
         yield session
     finally:
         session.close()
-

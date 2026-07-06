@@ -15,27 +15,48 @@ from app.database import AgentRun, WeeklyReport
 
 class OrchestratorAgent:
     name = "OrchestratorAgent"
+    pipeline_agents = (
+        "NewsAgent", "GitHubAgent", "TrendAgent", "VisualizationAgent",
+        "ReportAgent", "ServerChanPushAgent",
+    )
 
     def run(self, session: Session, week: str | None = None) -> dict:
         week = week or datetime.now().strftime("%G-W%V")
         run_id = uuid4().hex
-        orchestration_log = AgentRun(run_id=run_id, week=week, agent_name=self.name, status="running", input="{}")
-        session.add(orchestration_log); session.commit()
+        started_at = datetime.now()
+        orchestration_log = AgentRun(run_id=run_id, week=week, agent_name=self.name, status="running", input="{}", started_at=started_at)
+        # 在流水线开始前创建全部 pending 记录，便于前端实时展示执行队列。
+        session.add(orchestration_log)
+        session.add_all(AgentRun(run_id=run_id, week=week, agent_name=name, status="pending") for name in self.pipeline_agents)
+        session.commit()
         try:
             result = self._run_pipeline(session, run_id, week)
             orchestration_log.status = "success"
             orchestration_log.output = json.dumps(result, ensure_ascii=False)
+            orchestration_log.output_count = 1
             return result
         except Exception as exc:
             orchestration_log.status = "failed"
             orchestration_log.error = str(exc)
+            # 上游失败时结束尚未执行的 pending 记录，避免状态页长期显示伪运行状态。
+            finished_at = datetime.now()
+            pending_logs = session.query(AgentRun).filter(
+                AgentRun.run_id == run_id,
+                AgentRun.status == "pending",
+            ).all()
+            for pending_log in pending_logs:
+                pending_log.status = "failed"
+                pending_log.error = f"因上游步骤失败未执行：{exc}"
+                pending_log.finished_at = finished_at
             raise
         finally:
             orchestration_log.finished_at = datetime.now()
+            orchestration_log.duration_ms = max(int((orchestration_log.finished_at - started_at).total_seconds() * 1000), 0)
             session.commit()
 
     def _run_pipeline(self, session: Session, run_id: str, week: str) -> dict:
-        context = {"fallbacks": []}
+        # 自动流水线只生成报告，不主动真实推送；推送必须由用户显式确认。
+        context = {"fallbacks": [], "allow_push": False}
         context["articles"] = NewsAgent().execute(session, run_id, week, context)
         context["repos"] = GitHubAgent().execute(session, run_id, week, context)
         context["trends"] = TrendAgent().execute(session, run_id, week, context)
@@ -57,7 +78,12 @@ class OrchestratorAgent:
         session.commit()
         context["push"] = ServerChanPushAgent().execute(session, run_id, week, context)
         if context["push"]["status"] == "success":
-            report.pushed_at = datetime.now(); session.commit()
+            report.pushed_at = datetime.now()
+            report.push_status = "success"
+            session.commit()
+        elif context["push"]["status"] == "skipped":
+            report.push_status = "not_pushed"
+            session.commit()
         return {"run_id": run_id, "week": week, "report_id": report.id,
                 "generation_mode": report.generation_mode, "fallbacks": context["fallbacks"],
                 "push": context["push"]}
