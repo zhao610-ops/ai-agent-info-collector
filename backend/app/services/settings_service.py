@@ -70,3 +70,12 @@ def get_serverchan_config(session: Session, include_secret: bool = False) -> dic
         result["sendkey"] = sendkey
     return result
 
+
+def update_serverchan_config(session: Session, data: dict) -> dict:
+    """保存 Server 酱配置；SendKey 为空时保留已有密钥。"""
+    _write(session, "server_chan_enabled", str(bool(data["enabled"])).lower())
+    _write(session, "server_chan_api_base", data.get("api_base", "").strip())
+    if data.get("sendkey"):
+        _write(session, "server_chan_sendkey", data["sendkey"].strip(), secret=True)
+    session.commit()
+    return get_serverchan_config(session)

@@ -27,7 +27,7 @@ def report_dict(row: WeeklyReport, detail: bool = False) -> dict:
 
 @router.get("/reports")
 def reports(session: Session = Depends(get_db)):
-    return [report_dict(row) for row in session.query(WeeklyReport).order_by(WeeklyReport.week.desc()).all()]
+    return [report_dict(row) for row in session.query(WeeklyReport).order_by(WeeklyReport.created_at.desc()).all()]
 
 
 @router.get("/reports/{week}")
@@ -79,7 +79,8 @@ def report_image(week: str, image_name: str, session: Session = Depends(get_db))
 @router.get("/github/hot")
 def github_hot(week: str | None = None, session: Session = Depends(get_db)):
     if not week:
-        latest = session.query(GithubRepo.week).order_by(GithubRepo.week.desc()).first()
+        latest_report = session.query(WeeklyReport.week).order_by(WeeklyReport.created_at.desc()).first()
+        latest = latest_report or session.query(GithubRepo.week).order_by(GithubRepo.created_at.desc()).first()
         week = latest[0] if latest else ""
     rows = session.query(GithubRepo).filter(GithubRepo.week == week).order_by(GithubRepo.stars_growth_7d.desc()).limit(10).all()
     return [{"week": row.week, "repo_name": row.repo_name, "full_name": row.full_name, "url": row.url,
@@ -91,7 +92,8 @@ def github_hot(week: str | None = None, session: Session = Depends(get_db)):
 @router.get("/keywords/trends")
 def keyword_trends(week: str | None = None, session: Session = Depends(get_db)):
     if not week:
-        latest = session.query(KeywordStat.week).order_by(KeywordStat.week.desc()).first()
+        latest_report = session.query(WeeklyReport.week).order_by(WeeklyReport.created_at.desc()).first()
+        latest = latest_report or session.query(KeywordStat.week).order_by(KeywordStat.week.desc()).first()
         week = latest[0] if latest else ""
     rows = session.query(KeywordStat).filter(KeywordStat.week == week).order_by(KeywordStat.trend_score.desc()).all()
     return [{"week": row.week, "keyword": row.keyword, "frequency": row.frequency,

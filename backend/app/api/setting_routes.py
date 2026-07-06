@@ -3,7 +3,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.database import PushLog, get_db
-from app.services.settings_service import get_llm_config, get_serverchan_config, update_llm_config
+from app.services.settings_service import (
+    get_llm_config, get_serverchan_config, update_llm_config, update_serverchan_config,
+)
 from app.tools.llm_tool import LLMTool
 from app.tools.serverchan_tool import ServerChanTool
 
@@ -17,6 +19,12 @@ class LLMConfigInput(BaseModel):
     base_url: str = ""
     model: str = ""
     api_key: str | None = Field(default=None, max_length=1000)
+
+
+class ServerChanConfigInput(BaseModel):
+    enabled: bool = False
+    api_base: str = "https://sctapi.ftqq.com"
+    sendkey: str | None = Field(default=None, max_length=1000)
 
 
 @router.get("/llm")
@@ -46,7 +54,19 @@ def test_llm(session: Session = Depends(get_db)):
 
 @router.get("/serverchan")
 def serverchan_config(session: Session = Depends(get_db)):
-    return get_serverchan_config(session)
+    config = get_serverchan_config(session)
+    logs = session.query(PushLog).order_by(PushLog.created_at.desc()).limit(10).all()
+    config["recent_pushes"] = [
+        {"id": row.id, "week": row.week, "status": row.status,
+         "error_message": row.error_message, "created_at": row.created_at}
+        for row in logs
+    ]
+    return config
+
+
+@router.post("/serverchan")
+def save_serverchan_config(data: ServerChanConfigInput, session: Session = Depends(get_db)):
+    return update_serverchan_config(session, data.model_dump())
 
 
 @router.post("/test-push")
@@ -65,4 +85,3 @@ def test_push(session: Session = Depends(get_db)):
         session.add(PushLog(week="test", title=title, content=content, status="failed", error_message=str(exc)))
         session.commit()
         raise HTTPException(502, str(exc)) from exc
-
