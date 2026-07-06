@@ -293,22 +293,7 @@ git diff --check
 
 模型测试和 Server 酱测试会访问真实外部服务，验收时按需执行。
 
-## 简历写法参考
 
-**AI Agent Weekly Radar｜多 Agent 协作的 AI 行业情报周报系统**
-
-基于 FastAPI、Next.js 和 SQLAlchemy 设计并实现 7 Agent 情报分析流水线，完成 RSS/GitHub 数据采集、jieba 趋势分析、Matplotlib/WordCloud 可视化、OpenAI 兼容模型周报生成及 Server 酱微信推送；构建统一 Agent 运行日志，记录状态、耗时、输出量和异常，并通过 mock、模板降级、图表隔离与推送重试保证无外部 Key 时仍可完整演示。
-
-可拆分为简历要点：
-
-- 设计 Orchestrator 驱动的 7 Agent 顺序编排和可观测状态模型，实现任务级错误追踪与耗时统计。
-- 集成多 Provider OpenAI Compatible API，构建 LLM 失败自动降级模板的周报生成链路。
-- 实现关键词历史趋势、GitHub 增长分析和三类图表，支持 4～8 周趋势可视化。
-- 通过外部服务 mock、后台异常兜底、密钥脱敏和显式推送策略提升系统稳定性与安全性。
-
-## 面试讲解话术
-
-“这个项目不是简单的定时脚本，而是一条可观测、可降级的多 Agent 数据流水线。Orchestrator 会先创建完整执行队列，再依次调用新闻、GitHub、趋势、可视化、报告和推送 Agent。每一步统一记录状态、耗时、输出数量和异常。外部服务失败不会直接打断流程：RSS 和 GitHub 使用 mock，LLM 降级模板，图表逐张隔离，未配置 Server 酱则记录 skipped。前端能够展示完整执行链路、历史周报、趋势图和配置状态。工程上重点解决了任务可观测性、外部依赖不稳定、密钥安全和可重复演示问题。”
 
 ## 后续优化方向
 
