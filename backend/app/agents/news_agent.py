@@ -17,14 +17,19 @@ class NewsAgent(BaseAgent):
         tool = RSSTool()
         try:
             items = tool.fetch([url.strip() for url in settings.news_rss_urls.split(",") if url.strip()])
+            items = [item for item in items if item.get("title") and item.get("url")]
             if not items:
                 raise RuntimeError("RSS 未返回数据")
-        except Exception:
+        except Exception as exc:
             items = tool.mock()
             context["fallbacks"].append("NewsAgent 使用 mock 数据")
+            context["agent_errors"].setdefault(self.name, []).append(f"RSS 采集失败，已使用 mock 数据：{exc}")
         result = []
         for item in items:
-            published = datetime.fromisoformat(item["published_at"].replace("Z", "+00:00")).replace(tzinfo=None) if item.get("published_at") else None
+            try:
+                published = datetime.fromisoformat(item["published_at"].replace("Z", "+00:00")).replace(tzinfo=None) if item.get("published_at") else None
+            except (TypeError, ValueError):
+                published = None
             row = session.query(Article).filter(Article.url == item["url"]).first()
             if not row:
                 row = Article(title=item["title"], url=item["url"], source=item["source"], published_at=published,

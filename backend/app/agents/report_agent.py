@@ -31,9 +31,10 @@ class ReportAgent(BaseAgent):
             except Exception as exc:
                 llm_error = str(exc)
                 context["fallbacks"].append(f"ReportAgent 大模型降级：{exc}")
+                context["agent_errors"].setdefault(self.name, []).append(f"LLM 调用失败，已降级模板周报：{exc}")
         report_dir = Path(get_settings().reports_dir) / week
         path = save_report_file(report_dir, content)
         return {"summary": summary, "content_md": content, "content_html": to_html(content),
                 "report_path": path, "generation_mode": mode, "llm_error": llm_error,
-                "llm_enabled": config["enabled"], "llm_provider": config["provider"], "llm_model": config["model"]}
-
+                "llm_enabled": config["enabled"], "llm_provider": config["provider"], "llm_model": config["model"],
+                "_output_count": 1}

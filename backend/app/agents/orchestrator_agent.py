@@ -56,7 +56,7 @@ class OrchestratorAgent:
 
     def _run_pipeline(self, session: Session, run_id: str, week: str) -> dict:
         # 自动流水线只生成报告，不主动真实推送；推送必须由用户显式确认。
-        context = {"fallbacks": [], "allow_push": False}
+        context = {"fallbacks": [], "agent_errors": {}, "allow_push": False}
         context["articles"] = NewsAgent().execute(session, run_id, week, context)
         context["repos"] = GitHubAgent().execute(session, run_id, week, context)
         context["trends"] = TrendAgent().execute(session, run_id, week, context)
@@ -67,7 +67,10 @@ class OrchestratorAgent:
         values = {
             "title": f"AI Agent 周报｜{week}", "summary": report_data["summary"],
             "content_md": report_data["content_md"], "content_html": report_data["content_html"],
-            **context["charts"], "report_path": report_data["report_path"],
+            "wordcloud_image": context["charts"]["wordcloud_image"],
+            "github_chart_image": context["charts"]["github_chart_image"],
+            "keyword_trend_image": context["charts"]["keyword_trend_image"],
+            "report_path": report_data["report_path"],
             "llm_enabled": report_data["llm_enabled"], "llm_provider": report_data["llm_provider"],
             "llm_model": report_data["llm_model"], "generation_mode": report_data["generation_mode"],
         }

@@ -29,6 +29,10 @@ class BaseAgent:
             log.status = "success"
             log.output = json.dumps(self.summarize_output(result), ensure_ascii=False, default=str)
             log.output_count = self.count_output(result)
+            # 降级属于成功完成，但仍将原始异常写入日志，便于前端解释数据来源。
+            agent_errors = context.get("agent_errors", {}).get(self.name, [])
+            if agent_errors:
+                log.error = "\n".join(str(error) for error in agent_errors)
             return result
         except Exception as exc:
             log.status = "failed"
@@ -48,7 +52,11 @@ class BaseAgent:
 
     @staticmethod
     def summarize_output(result: Any) -> Any:
-        return {"count": len(result)} if isinstance(result, list) else result
+        if isinstance(result, list):
+            return {"count": len(result)}
+        if isinstance(result, dict):
+            return {key: value for key, value in result.items() if not key.startswith("_")}
+        return result
 
     @staticmethod
     def count_output(result: Any) -> int:
@@ -57,6 +65,8 @@ class BaseAgent:
             return 0
         if isinstance(result, (list, tuple, set)):
             return len(result)
+        if isinstance(result, dict) and isinstance(result.get("_output_count"), int):
+            return result["_output_count"]
         if isinstance(result, dict) and isinstance(result.get("count"), int):
             return result["count"]
         return 1

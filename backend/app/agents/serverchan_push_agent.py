@@ -1,4 +1,5 @@
 import json
+import time
 from datetime import datetime
 
 from sqlalchemy.orm import Session
@@ -14,6 +15,7 @@ class ServerChanPushAgent(BaseAgent):
     name = "ServerChanPushAgent"
 
     def run(self, session: Session, week: str, context: dict) -> dict:
+        context.setdefault("agent_errors", {})
         config = get_serverchan_config(session, include_secret=True)
         title = f"AI Agent 周报｜{week}"
         top_words = "、".join(item["keyword"] for item in context["trends"][:5])
@@ -25,13 +27,24 @@ class ServerChanPushAgent(BaseAgent):
         elif not config["enabled"] or not config["sendkey_configured"]:
             status, response, error = "skipped", {}, "Server 酱未启用或未配置 SendKey"
         else:
-            try:
-                response = ServerChanTool(config["api_base"], config["sendkey"]).push(title, desp)
-                status, error = "success", ""
-            except Exception as exc:
-                status, response, error = "failed", {}, str(exc)
+            response, error, status = {}, "", "failed"
+            tool = ServerChanTool(config["api_base"], config["sendkey"])
+            # 仅显式推送进入重试，最多三次，自动流水线不会触发网络请求。
+            for retry_count in range(3):
+                try:
+                    response = tool.push(title, desp)
+                    status, error = "success", ""
+                    break
+                except Exception as exc:
+                    error = str(exc)
+                    if retry_count < 2:
+                        time.sleep(retry_count + 1)
+        retry_count = retry_count if context.get("allow_push", False) and config["enabled"] and config["sendkey_configured"] else 0
+        if error:
+            context["agent_errors"].setdefault(self.name, []).append(error)
         log = PushLog(week=week, title=title, content=desp, status=status,
                       response=json.dumps(response, ensure_ascii=False), error_message=error,
+                      retry_count=retry_count,
                       pushed_at=datetime.now() if status == "success" else None)
         session.add(log); session.commit()
-        return {"status": status, "error": error}
+        return {"status": status, "error": error, "log_id": log.id, "_output_count": 1}

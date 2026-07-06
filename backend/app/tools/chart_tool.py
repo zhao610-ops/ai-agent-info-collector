@@ -39,12 +39,18 @@ class ChartTool:
 
     def keyword_trend(self, trends: list[dict]) -> str:
         path = self.output_dir / "keyword_trend.png"
-        rows = trends[:10]
         fig, ax = plt.subplots(figsize=(10, 6))
-        ax.plot([r["keyword"] for r in rows], [r["trend_score"] for r in rows], marker="o")
-        ax.set_title("本周关键词趋势", fontproperties=self._font())
-        for label in ax.get_xticklabels():
-            label.set_fontproperties(self._font())
-        ax.tick_params(axis="x", rotation=35)
+        keywords = list(dict.fromkeys(row["keyword"] for row in trends))[:5]
+        weeks = sorted({row["week"] for row in trends})
+        values = {(row["week"], row["keyword"]): row["frequency"] for row in trends}
+        for keyword in keywords:
+            ax.plot(weeks, [values.get((week, keyword), 0) for week in weeks], marker="o", label=keyword)
+        if keywords:
+            ax.legend(prop=self._font())
+        else:
+            ax.text(0.5, 0.5, "暂无趋势数据", ha="center", va="center", fontproperties=self._font())
+        ax.set_title("关键词近 4～8 周趋势", fontproperties=self._font())
+        ax.set_ylabel("出现频次", fontproperties=self._font())
+        ax.tick_params(axis="x", rotation=30)
         fig.tight_layout(); fig.savefig(path, dpi=150); plt.close(fig)
         return str(path)
